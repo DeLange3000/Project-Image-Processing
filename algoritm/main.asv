@@ -1,0 +1,6 @@
+%% input parameters
+
+h_pixel = 50; % height of final pixelated image
+w_pixel = 20; % width of final pixelated image
+K = 5; % amount of different colors in the final image
+source_filename = "yeet"; % source file name
