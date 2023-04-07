@@ -4,10 +4,14 @@ clear
 
 %% input parameters
 
-h_pixel = 50; % height of final pixelated image
+h_pixel = 30; % height of final pixelated image
 w_pixel = 30; % width of final pixelated image
 K = 5; % amount of different colors in the final image
-source_filename = "obamna.jpg"; % source file name
+addpath('images');
+% source_filename = "obamna.jpg"; % source file name
+% source_filename = "shrek.jpg"; % source file name
+source_filename = "dolphin.jpg"; % source file name
+
 
 %% open image
 
@@ -22,14 +26,18 @@ title('OBAMNA')
 
 %% initialize superpixels, palette and temperature
 
-N = h_pixel*w_pixel; %set of output pixels
+N = h_pixel*w_pixel; %set of output pixels, number of superpixels
 M = prod(size(input_imag(:,:,1))); %get total amount of pixels of input image
-input_superpixels = zeros(size(input_imag(:,:,1))); %create array that maps pixels to superpixels
+input_superpixels = zeros(size(input_imag(:,:,1))); %create array that maps pixels to superpixels. Each pixel 'index' will have int value in
+                                                    %this array that corresponds to the superpixel they belong to
 superpixel_colors = zeros(3, N); % give each superpixel a color
 temperature = zeros(3,1);
 temperature_c = zeros(3,1);
 output_imag = zeros(h_pixel, w_pixel, 3);
 [h_input, w_input] = size(input_superpixels(:,:,1)); % get width and height of input image
+
+% palette = zeros(3,K);
+palette = [];
 
 %assigning input pixels to superpixels
 superpixel_height = h_input/h_pixel; %round if wanted image size is not N times input image size
@@ -47,8 +55,8 @@ for i =1:superpixel_height:h_input %assign each input pixel to a superpixel
 end
 
 L_initial_color = mean(input_imag(:,:,1), 'all'); %get mean L color of input image
-a_initial_color = mean(input_imag(:,:,2), 'all'); %get mean L color of input image
-b_initial_color = mean(input_imag(:,:,3), 'all'); %get mean L color of input image
+a_initial_color = mean(input_imag(:,:,2), 'all'); %get mean a color of input image
+b_initial_color = mean(input_imag(:,:,3), 'all'); %get mean b color of input image
 
 superpixel_colors= [repelem(L_initial_color, N); repelem(a_initial_color, N); repelem(b_initial_color, N)]; % give each superpixel the same color
 
@@ -75,7 +83,7 @@ end
 
 %% loop for T > Tf
 
-    %% refine superpixels with modified SLIC
+    %% refine superpixels with modified SLIC (simple linear iterative cluttering)
 
     % euclidean distance = sqrt((x1-x2)^2 + (y1-y2)^2 + ...)
     m = 45;
@@ -162,10 +170,78 @@ end
         superpixel_center(:,i) = superpixel_center(:,i) + 0.4*net_distance; % move superpixel centers
     end
     
+    % smoothing color representatives of superpixels Original SLIC
+    % algorithm represents every superpixel using ms as color, this is the
+    % mean color of all pixels in superpixel. This can give problems with
+    % continuous regions (color gradient). This region will not seem
+    % continuous in the pixelated output. To solve this, the values for ms
+    % are altered by using a bilateral filter (=non-linear,
+    % edge-preserving, and noise-reducing smoothing filter for images).
+    % This gives the new colors => ms'
     
-   % smoothing color representatives of superpixels
+    %==========Map every superpixel to output grid==========
+    
+    %Get mean color of every superpixel
+    size_image = size(input_imag);
+    size_superpixels = size(input_superpixels);
+
+    % compare sizes, input_superpixels was one row too much, fix somewhere else
+    if size_image(1) < size_superpixels(1)
+        input_superpixels = input_superpixels(1:size_image(1), :);
+    end
+
+    if size_image(2) < size_superpixels(2)
+        input_superpixels = input_superpixels(:, 1:size_image(2));
+    end
+
+    ms_superpixels = zeros(N, 3); %ms value for every superpixel
+    superpixels_image = zeros(size(input_imag));
+
+    % Iterate over each superpixel
+    for i = 1:N
+        % Find the indices in input_superpixels that have the value
+        % corresponding to superpixel i
+        [row_indices, col_indices] = find(input_superpixels == i);
+        
+        % Loop over each color channel
+        for k = 1:3
+            % Get the corresponding color channel values in input_imag
+            color_values = input_imag(sub2ind(size(input_imag), row_indices, col_indices, k*ones(size(row_indices))));
+            % Calculate the mean of the corresponding color channel values in input_imag
+            ms_superpixels(i,k) = mean(color_values);
+        end
+    end
+    
+    %show image with all pixels set to their superpixel color
+    for i=1:h_input
+        for j=1:w_input
+            superpixels_image(i,j,:) = ms_superpixels(input_superpixels(i,j),:);
+        end
+    end
+    figure
+    imshow(lab2rgb(superpixels_image))
+    
+    %==========Convert superpixels to grid==========
+    %Create output image based on the superpixels
+    %nie zeker of da zo moet, werkt alleen als de volgorde van de
+    %superpixels = de volgorde van de output pixels
+    output_pixels = ms_superpixels;
+    output_pixels = reshape(output_pixels,w_pixel,h_pixel,3);
+    output_pixels = permute(output_pixels,[2 1 3]);    
+    
+    % Bilateral filtering of this image
+    filtered_image = imbilatfilt(lab2rgb(output_pixels));
+    filtered_image = rgb2lab(filtered_image);
+    msprime_superpixels = permute(filtered_image,[2 1 3]);
+    msprime_superpixels = reshape(msprime_superpixels,N,3);
+    
+    figure
+    imshow([lab2rgb(output_pixels) lab2rgb(filtered_image)],'InitialMagnification',2000)
+    title('Before and after bilaterial filtering')
+    
 
     %% associate superpixels to colors in the palette
+    %hoe krijgt ge eerste kleur in palette?
 
     %% refine colors in the palette
 
