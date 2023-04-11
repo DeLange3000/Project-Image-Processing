@@ -56,13 +56,18 @@ for i =1:superpixel_height:h_input %assign each input pixel to a superpixel
     end
 end
 
-initial_color = squeeze((mean(input_imag, [1, 2]))); %get mean L color of input image
+initial_color = abs(mean(input_imag(:,:,1), 'all')); %get mean L color of input image
+L_initial_color = abs(mean(input_imag(:,:,1), 'all')); %get mean L color of input image
+a_initial_color = abs(mean(input_imag(:,:,2), 'all')); %get mean a color of input image
+b_initial_color = abs(mean(input_imag(:,:,3), 'all')); %get mean b color of input image
 p_ck = [1]; %initiate P(ck)
 p_ps = 1/N;
-palette = [palette initial_color];
+palette = [palette [L_initial_color; a_initial_color; b_initial_color]];
 e_palette = 0.3; % maximum change for new color
 e_cluster = 0.03;
 temperature_lowering_factor = 0.7;
+
+superpixel_colors= [repelem(L_initial_color, N); repelem(a_initial_color, N); repelem(b_initial_color, N)]; % give each superpixel the same color
 
 %get temeperature_c (idk if correct)
 C_L = max(eig(cov(input_imag(:,:,1)))); %get max eigenvalue of input image
