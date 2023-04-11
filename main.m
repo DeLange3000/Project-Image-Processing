@@ -38,7 +38,6 @@ output_imag = zeros(h_pixel, w_pixel, 3);
 [h_input, w_input] = size(input_superpixels(:,:,1)); % get width and height of input image
 
 % palette = zeros(3,K);
-palette = [];
 b_and_a_sat = 1.1;
 
 %assigning input pixels to superpixels
@@ -59,7 +58,7 @@ end
 initial_color = squeeze((mean(input_imag, [1, 2]))); %get mean L color of input image
 p_ck = [1]; %initiate P(ck)
 p_ps = 1/N;
-palette = [palette initial_color];
+palette = [initial_color];
 e_palette = 0.3; % maximum change for new color
 e_cluster = 0.03;
 temperature_lowering_factor = 0.7;
@@ -262,7 +261,7 @@ end
                     palette_index = a;
                 end
                 temp_p_ck(a) = temp_p_ck + p_ck_ps*p_ps;
-                temp_ck(:, a) = temp_ck(a, :) + squeeze(filtered_image(i,j,:)).*p_ck_ps.*p_ps;
+                temp_ck(:, a) = temp_ck(:, a) + squeeze(filtered_image(i,j,:)).*p_ck_ps.*p_ps;
             end            
             superpixel_palette_colors((i-1)*w_pixel+j) = palette_index;
         end
@@ -272,7 +271,7 @@ end
 
     %refine colors
 
-    ck = temp_ck/p_ck;
+    palette = temp_ck/p_ck;
 
 
     %% check convergence of palette
@@ -283,7 +282,11 @@ end
     if(total_palette_change < e_palette)
         temperature = temperature*temperature_lowering_factor;
         if(length(palette(1,:)) < K)
-            %??????????????????????????????????????
+            for i = 1:length(palette(1,:))
+                for j = 1:length(palette(1,:))
+                    %check if color needs to split
+                end
+            end
         end
     end
 
@@ -296,6 +299,6 @@ palette(2:3,:) = b_and_a_sat*palette(2:3,:);
 %% show image
 
 pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_pixel, w_pixel);
-
+ 
 figure
-imshow(lab2rgb(pixelated_image))
+imshow(lab2rgb(pixelated_image),'InitialMagnification',2000)
