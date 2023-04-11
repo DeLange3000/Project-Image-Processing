@@ -31,7 +31,7 @@ M = prod(size(input_imag(:,:,1))); %get total amount of pixels of input image
 input_superpixels = zeros(size(input_imag(:,:,1))); %create array that maps pixels to superpixels. Each pixel 'index' will have int value in
                                                     %this array that corresponds to the superpixel they belong to
 superpixel_colors = zeros(3, N); % give each superpixel a color
-superpixel_palette_colors = zeros(3, 1); %for assigning palette colors to superpixels (points to palette index)
+superpixel_palette_colors = ones(N, 1); %for assigning palette colors to superpixels (points to palette index)
 temperature = zeros(3,1);
 temperature_c = zeros(3,1);
 output_imag = zeros(h_pixel, w_pixel, 3);
@@ -59,9 +59,13 @@ initial_color = squeeze((mean(input_imag, [1, 2]))); %get mean L color of input 
 p_ck = [1]; %initiate P(ck)
 p_ps = 1/N;
 palette = [initial_color];
-e_palette = 0.3; % maximum change for new color
-e_cluster = 0.03;
+e_palette = 3; % maximum change for new color
+e_cluster = 0.3;
 temperature_lowering_factor = 0.7;
+
+%subclusters??????????????
+sub_disturbance = 30;
+subclusters = [1; 2];
 
 %get temeperature_c (idk if correct)
 C_L = max(eig(cov(input_imag(:,:,1)))); %get max eigenvalue of input image
@@ -86,6 +90,8 @@ end
 
 %% loop for T > Tf
 
+for loop_index = 1:2
+    disp(loop_index)
     %% refine superpixels with modified SLIC (simple linear iterative cluttering)
 
     % euclidean distance = sqrt((x1-x2)^2 + (y1-y2)^2 + ...)
@@ -98,9 +104,9 @@ end
     %this)
     for i = 1:h_input
         for j = 1:w_input
-            if(mod(i*j, 10000) == 0)
-                disp("looping... "+num2str(i*j)+" of "+num2str(h_input*w_input))
-            end
+%             if(mod(i*j, 10000) == 0)
+%                 disp("looping... "+num2str(i*j)+" of "+num2str(h_input*w_input))
+%             end
             d_min = 1e6; % take high enough
             superpixel = input_superpixels(i,j);
             new_superpixel = superpixel;
@@ -127,7 +133,7 @@ end
 
                 %color
                 pc_input = input_imag(i,j,:);
-                pc_super = superpixel_colors(superpixel);
+                pc_super = palette(:, superpixel_palette_colors(superpixel));
                 dc = sqrt(sum((pc_input - pc_super).^2));
     
                 %position
@@ -223,8 +229,8 @@ end
             superpixels_image(i,j,:) = ms_superpixels(input_superpixels(i,j),:);
         end
     end
-    figure
-    imshow(lab2rgb(superpixels_image))
+%     figure
+%     imshow(lab2rgb(superpixels_image))
     
     %==========Convert superpixels to grid==========
     %Create output image based on the superpixels
@@ -240,38 +246,42 @@ end
     msprime_superpixels = permute(filtered_image,[2 1 3]);
     msprime_superpixels = reshape(msprime_superpixels,N,3);
     
-    figure
-    imshow([lab2rgb(output_pixels) lab2rgb(filtered_image)],'InitialMagnification',2000)
-    title('Before and after bilaterial filtering')
+%     figure
+%     imshow([lab2rgb(output_pixels) lab2rgb(filtered_image)],'InitialMagnification',2000)
+%     title('Before and after bilaterial filtering')
     
     %% refine colors in the palette
 
     %calculate p(ck|ps)
 
     temp_p_ck = zeros(size(p_ck));
+    
     temp_ck = zeros(size(palette));
     for i = 1:h_pixel
         for j = 1:w_pixel
             max_p_ck_ps = 0;
             palette_index = 0;
+            p_ck_ps = zeros(1, length(palette(1,:)));
             for a = 1:length(palette(1,:))
-                p_ck_ps = p_ck*exp(-norm(squeeze(filtered_image(i,j,:)) - palette(:,a))/temperature); %needs to be normalized?
-                if(p_ck_ps > max_p_ck_ps)
+                p_ck_ps(a) = p_ck(a)*exp(-norm(squeeze(filtered_image(i,j,:)) - palette(:,a))/temperature); %needs to be normalized?
+                if(p_ck_ps(a) >= max_p_ck_ps)
                     max_p_ck_ps = p_ck_ps;
                     palette_index = a;
                 end
-                temp_p_ck(a) = temp_p_ck + p_ck_ps*p_ps;
-                temp_ck(:, a) = temp_ck(:, a) + squeeze(filtered_image(i,j,:)).*p_ck_ps.*p_ps;
-            end            
+            end
+            p_ck_ps = p_ck_ps/sum(p_ck.*exp(-norm(squeeze(filtered_image(i,j,:)) - palette)./temperature));
+            for a = 1:length(palette(1,:))
+                temp_p_ck(a) = temp_p_ck(a) + p_ck_ps(a)*p_ps;
+                temp_ck(:, a) = temp_ck(:, a) + squeeze(filtered_image(i,j,:)).*p_ck_ps(a).*p_ps;
+            end
             superpixel_palette_colors((i-1)*w_pixel+j) = palette_index;
         end
     end
-    
     p_ck = temp_p_ck;
 
     %refine colors
 
-    palette = temp_ck/p_ck;
+    palette = temp_ck./p_ck;
 
 
     %% check convergence of palette
@@ -282,16 +292,32 @@ end
     if(total_palette_change < e_palette)
         temperature = temperature*temperature_lowering_factor;
         if(length(palette(1,:)) < K)
-            for i = 1:length(palette(1,:))
-                for j = 1:length(palette(1,:))
-                    %check if color needs to split
+            if(length(palette(1,:)) == 1)
+                 palette = [palette*1/3 [2/3*palette(:,subclusters(1,1))]];
+                 p_ck = [p_ck/2 p_ck/2];
+            else
+                for i = 1:length(palette(1,:)) -1
+                    ck1 = palette(:,subclusters(1,i));
+                    ck2 = palette(:,subclusters(2,i));
+    
+                    if(norm(ck1 - ck2) > e_cluster)
+                        palette = [palette [(ck1+ck2)/2]];
+                        subclusters = [subclusters [i; lenght(palette) + 1]];
+                        p_ck = [p_ck p_ck(i)/2];
+                        p_ck(i) = p_ck(i)/2;
+                    end
                 end
             end
+            
         end
+
+    else
+        palette = palette + 3*rand(size(palette));
     end
 
     %disturb ck1 and ck2
 
+end
 %% post process
 
 palette(2:3,:) = b_and_a_sat*palette(2:3,:);
