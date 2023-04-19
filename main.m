@@ -59,7 +59,7 @@ initial_color = squeeze((mean(input_imag, [1, 2]))); %get mean L color of input 
 p_ck = [1]; %initiate P(ck)
 p_ps = 1/N;
 palette = [initial_color];
-e_palette = 3; % maximum change for new color
+e_palette = 300; % maximum change for new color
 e_cluster = 0.3;
 temperature_lowering_factor = 0.7;
 
@@ -90,7 +90,7 @@ end
 
 %% loop for T > Tf
 
-for loop_index = 1:2
+for loop_index = 1:38
     disp(loop_index)
     %% refine superpixels with modified SLIC (simple linear iterative cluttering)
 
@@ -134,7 +134,7 @@ for loop_index = 1:2
                 %color
                 pc_input = input_imag(i,j,:);
                 pc_super = palette(:, superpixel_palette_colors(superpixel));
-                dc = sqrt(sum((pc_input - pc_super).^2));
+                dc = sqrt(sum((pc_input - pc_super).^2, 'all'));
     
                 %position
                 pd_input = [i,j];
@@ -262,17 +262,17 @@ for loop_index = 1:2
             max_p_ck_ps = 0;
             palette_index = 0;
             p_ck_ps = zeros(1, length(palette(1,:)));
-            for a = 1:length(palette(1,:))
+            for a = 1:length(p_ck_ps)
                 p_ck_ps(a) = p_ck(a)*exp(-norm(squeeze(filtered_image(i,j,:)) - palette(:,a))/temperature); %needs to be normalized?
                 if(p_ck_ps(a) >= max_p_ck_ps)
                     max_p_ck_ps = p_ck_ps;
                     palette_index = a;
                 end
             end
-            p_ck_ps = p_ck_ps/sum(p_ck.*exp(-norm(squeeze(filtered_image(i,j,:)) - palette)./temperature));
-            for a = 1:length(palette(1,:))
+            p_ck_ps = p_ck_ps/sum(p_ck.*exp(-norm(msprime_superpixels((i-1)*w_pixel+j, :)' - palette)./temperature));
+            for a = 1:length(temp_p_ck)
                 temp_p_ck(a) = temp_p_ck(a) + p_ck_ps(a)*p_ps;
-                temp_ck(:, a) = temp_ck(:, a) + squeeze(filtered_image(i,j,:)).*p_ck_ps(a).*p_ps;
+                temp_ck(:, a) = temp_ck(:, a) + msprime_superpixels((i-1)*w_pixel+j, :)'*p_ck_ps(a)*p_ps;
             end
             superpixel_palette_colors((i-1)*w_pixel+j) = palette_index;
         end
@@ -302,7 +302,7 @@ for loop_index = 1:2
     
                     if(norm(ck1 - ck2) > e_cluster)
                         palette = [palette [(ck1+ck2)/2]];
-                        subclusters = [subclusters [i; lenght(palette) + 1]];
+                        subclusters = [subclusters [i; length(palette) + 1]];
                         p_ck = [p_ck p_ck(i)/2];
                         p_ck(i) = p_ck(i)/2;
                     end
