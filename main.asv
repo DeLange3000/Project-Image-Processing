@@ -4,8 +4,8 @@ clear
 
 %% input parameters
 
-h_pixel = 10; % height of final pixelated image
-w_pixel = 10; % width of final pixelated image
+h_pixel = 3; % height of final pixelated image
+w_pixel = 4; % width of final pixelated image
 K = 5; % amount of different colors in the final image
 addpath('images');
 % source_filename = "obamna.jpg"; % source file name
@@ -92,7 +92,7 @@ plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
 
 %% loop for T > Tf
 
-for loop_index = 1:1
+for loop_index = 1:5
     disp(loop_index)
 
     %% refine superpixels with modified SLIC (simple linear iterative clustering)
@@ -110,7 +110,7 @@ for loop_index = 1:1
 %             if(mod(i*j, 10000) == 0)
 %                 disp("looping... "+num2str(i*j)+" of "+num2str(h_input*w_input))
 %             end
-            
+            d_min = 1e6; % take high enough
             superpixel = input_superpixels(i,j);
             new_superpixel = superpixel;
          
@@ -133,21 +133,6 @@ for loop_index = 1:1
 
 
 			%disp(neigboring_superpixels)
-			
-			% dmin has to first be (i,j)'s current superpixel, otherwise it
-			% will by default be moved to the leftmost neighboring
-			% superpixel.
-			%color
-            pc_input = input_imag(i,j,:);
-            pc_super = palette(:, superpixel_palette_colors(superpixel));
-            dc = sqrt(sum((pc_input - pc_super).^2, 'all'));
-    
-            %position
-            pd_input = [i,j];
-            pd_super = [x_superpixel_centre y_superpixel_centre];
-            dp = m*sqrt(N/M)*sqrt(sum((pd_input - pd_super).^2));
-
-			d_min = dc+dp;
 
             % loop over neighboring superpixels
             for a = neigboring_superpixels
@@ -161,7 +146,6 @@ for loop_index = 1:1
                 pd_input = [i,j];
                 pd_super = [x_superpixel_centre y_superpixel_centre];
                 dp = m*sqrt(N/M)*sqrt(sum((pd_input - pd_super).^2));
-				
 
                 if(dc + dp < d_min) %check euclidean distance
                     d_min = dc + dp;
@@ -187,11 +171,9 @@ for loop_index = 1:1
         [x,y] = find(input_superpixels == i); %find elements equal to i
         x_superpixel_centre = (max(x) + min(x))/2;
         y_superpixel_centre = (max(y) + min(y))/2;
-		if size([y_superpixel_centre, x_superpixel_centre]) ~= [0 2]
-			superpixel_center(:,i) = [y_superpixel_centre, x_superpixel_centre];
-		end
+        superpixel_center(:,i) = [y_superpixel_centre, x_superpixel_centre];
 	end
-	plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
+	plot()
 
     % for i = w_pixel+1:N-w_pixel % skip edges
     %     %get neigbouring superpixels
@@ -261,8 +243,8 @@ for loop_index = 1:1
             superpixels_image(i,j,:) = ms_superpixels(input_superpixels(i,j),:);
         end
     end
-    figure
-    imshow(lab2rgb(superpixels_image))
+%     figure
+%     imshow(lab2rgb(superpixels_image))
     
     %==========Convert superpixels to grid==========
     %Create output image based on the superpixels
