@@ -7,10 +7,11 @@ clear
 h_pixel = 10; % height of final pixelated image
 w_pixel = 10; % width of final pixelated image
 K = 5; % amount of different colors in the final image
+loop_range = 100; % how many iterations for image refinement
 addpath('images');
 % source_filename = "obamna.jpg"; % source file name
 % source_filename = "shrek.jpg"; % source file name
-source_filename = "images/dolphin.jpg"; % source file name
+source_filename = "images/Two-colours-wallpaper1.jpg"; % source file name
 
 
 %% open image
@@ -62,7 +63,7 @@ p_ck = [1]; %initiate P(ck)
 p_ps = 1/N;
 palette = [initial_color];
 e_palette = 300; % maximum change for new color
-e_cluster = 0.3;
+e_cluster = 10;
 temperature_lowering_factor = 0.7;
 
 %subclusters??????????????
@@ -92,7 +93,7 @@ plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
 
 %% loop for T > Tf
 
-for loop_index = 1:1
+for loop_index = 1:loop_range
     disp(loop_index)
 
     %% refine superpixels with modified SLIC (simple linear iterative clustering)
@@ -172,9 +173,9 @@ for loop_index = 1:1
 			
         end
 	end
-	figure
-	imagesc(input_superpixels)
-	hold on
+% 	figure
+% 	imagesc(input_superpixels)
+% 	hold on
     %% laplacian smoothing
 
     % get center of each superpixel (assume they are rather square) (copied
@@ -191,7 +192,7 @@ for loop_index = 1:1
 			superpixel_center(:,i) = [y_superpixel_centre, x_superpixel_centre];
 		end
 	end
-	plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
+% 	plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
 
     % for i = w_pixel+1:N-w_pixel % skip edges
     %     %get neigbouring superpixels
@@ -242,16 +243,14 @@ for loop_index = 1:1
         % corresponding to superpixel i
         [row_indices, col_indices] = find(input_superpixels == i);
         
-        % Loop over each color channel
-        for k = 1:3
-            % Get the corresponding color channel values in input_imag
-            color_values = input_imag(sub2ind(size(input_imag), row_indices, col_indices, k*ones(size(row_indices))));
-            % Calculate the mean of the corresponding color channel values in input_imag
-			if isnan(mean(color_values))
-				ms_superpixels(i,k) = 0;
-			else
+        if (not(isempty(row_indices))) % only run for still existing superpixels
+            % Loop over each color channel
+            for k = 1:3
+                % Get the corresponding color channel values in input_imag
+                color_values = input_imag(sub2ind(size(input_imag), row_indices, col_indices, k*ones(size(row_indices))));
+                % Calculate the mean of the corresponding color channel values in input_imag
 				ms_superpixels(i,k) = mean(color_values);
-			end
+            end
         end
     end
     
@@ -261,8 +260,9 @@ for loop_index = 1:1
             superpixels_image(i,j,:) = ms_superpixels(input_superpixels(i,j),:);
         end
     end
-    figure
-    imshow(lab2rgb(superpixels_image))
+%      figure
+%      imshow(lab2rgb(superpixels_image))
+%      title('superpixels of image')
     
     %==========Convert superpixels to grid==========
     %Create output image based on the superpixels
@@ -278,9 +278,9 @@ for loop_index = 1:1
     msprime_superpixels = permute(filtered_image,[2 1 3]);
     msprime_superpixels = reshape(msprime_superpixels,N,3);
     
-    figure
-    imshow([lab2rgb(output_pixels) lab2rgb(filtered_image)],'InitialMagnification',2000)
-    title('Before and after bilaterial filtering')
+%     figure
+%     imshow([lab2rgb(output_pixels) lab2rgb(filtered_image)],'InitialMagnification',2000)
+%     title('Before and after bilaterial filtering')
     
     %% refine colors in the palette
 
@@ -301,7 +301,11 @@ for loop_index = 1:1
                     palette_index = a;
                 end
             end
-            p_ck_ps = p_ck_ps/sum(p_ck.*exp(-norm(msprime_superpixels((i-1)*w_pixel+j, :)' - palette)./temperature));
+            if(sum(p_ck.*exp(-norm(msprime_superpixels((i-1)*w_pixel+j, :)' - palette)./temperature)) ~= 0)
+                p_ck_ps = p_ck_ps/sum(p_ck.*exp(-norm(msprime_superpixels((i-1)*w_pixel+j, :)' - palette)./temperature));
+            else
+                  p_ck_ps = 0;
+            end
             for a = 1:length(temp_p_ck)
                 temp_p_ck(a) = temp_p_ck(a) + p_ck_ps(a)*p_ps;
                 temp_ck(:, a) = temp_ck(:, a) + msprime_superpixels((i-1)*w_pixel+j, :)'*p_ck_ps(a)*p_ps;
@@ -319,6 +323,7 @@ for loop_index = 1:1
     %% check convergence of palette
 
     %check T
+    if (loop_index ~= loop_range)
     total_palette_change = norm(total_palette_change - palette);
 
     if(total_palette_change < e_palette)
@@ -333,8 +338,9 @@ for loop_index = 1:1
                     ck2 = palette(:,subclusters(2,i));
     
                     if(norm(ck1 - ck2) > e_cluster)
-                        palette = [palette (ck1+ck2)/2];
-                        subclusters = [subclusters [i; length(palette) + 1]];
+                        palette = [palette ck2 - ck1/2];
+                        palette(:, i) = ck2 + ck1/2;
+                        subclusters = [subclusters [i; length(palette)]];
                         p_ck = [p_ck p_ck(i)/2];
                         p_ck(i) = p_ck(i)/2;
                     end
@@ -344,10 +350,18 @@ for loop_index = 1:1
         end
 
     else
-        palette = palette + 3*rand(size(palette));
+        palette = palette + 30*randn(size(palette));
     end
 
     %disturb ck1 and ck2
+
+    % show temp image
+    pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_pixel, w_pixel);
+ 
+    figure
+    imshow(lab2rgb(pixelated_image),'InitialMagnification',2000)
+    title('Pixelated Image')
+    end
 
 end
 %% post process
@@ -360,3 +374,4 @@ pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_
  
 figure
 imshow(lab2rgb(pixelated_image),'InitialMagnification',2000)
+title('Pixelated Image')
