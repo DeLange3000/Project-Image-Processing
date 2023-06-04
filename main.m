@@ -32,7 +32,7 @@ M = numel(input_imag(:,:,1)); %get total amount of pixels of input image
 input_superpixels = zeros(size(input_imag(:,:,1))); %create array that maps pixels to superpixels. Each pixel 'index' will have int value in
                                                     %this array that corresponds to the superpixel they belong to
 superpixel_colors = zeros(3, N); % give each superpixel a color
-superpixel_palette_colors = ones(N, 1); %for assigning palette colors to superpixels (points to palette index)
+superpixel_palette_colors = round(rand(N,1))+1; %for assigning random palette color to superpixels (points to palette index)
 temperature = zeros(3,1);
 temperature_c = zeros(3,1);
 temperature_f = 1;
@@ -49,14 +49,13 @@ superpixel_width = w_input/w_pixel;
 superpixel_center = zeros(2, N);
 
 counter = 1;
-msprime_superpixels = [];
+superpixel_colors = [];
 for i = 1:superpixel_height:h_input %assign each input pixel to a superpixel
     for j = 1:superpixel_width:w_input
         jr = round(j);
         ir = round(i);
-        input_superpixels(ir:ir+superpixel_height, jr:jr+superpixel_width) = counter;
 
-        temp_superpixel_width = superpixel_width;
+                temp_superpixel_width = superpixel_width;
         temp_superpixel_height = superpixel_height;
         while jr+temp_superpixel_width > width(input_imag)
             temp_superpixel_width = temp_superpixel_width - 1;
@@ -64,12 +63,14 @@ for i = 1:superpixel_height:h_input %assign each input pixel to a superpixel
         while ir+temp_superpixel_height > height(input_imag)
             temp_superpixel_height = temp_superpixel_height - 1;
         end
-        msprime_superpixels =[msprime_superpixels mean(input_imag(ir:ir+temp_superpixel_height, jr:jr+temp_superpixel_width, :), [1 2])]; % get mean color of each superpixel
+        superpixel_colors =[superpixel_colors mean(input_imag(ir:ir+temp_superpixel_height, jr:jr+temp_superpixel_width, :), [1 2])]; % get mean color of each superpixel
+        input_superpixels(ir:ir+temp_superpixel_height, jr:jr+temp_superpixel_width) = counter;
+
         counter = counter + 1;
     end
 end
 
-msprime_superpixels = squeeze(msprime_superpixels);
+superpixel_colors = squeeze(superpixel_colors);
 
 %get temperature_c (idk if correct)
 coefficients_L = pca(input_imag(:,:,1));
@@ -126,75 +127,30 @@ while temperature > temperature_f
     m = 45;
     total_palette_change = palette;
 
-
-
     %iterate for each input pixel over superpixels that it is next too (got to optimize
     %this)
     for i = 1:h_input
         for j = 1:w_input
-%             if(mod(i*j, 10000) == 0)
-%                 disp("looping... "+num2str(i*j)+" of "+num2str(h_input*w_input))
-%             end
-            
-            superpixel = input_superpixels(i,j);
-            new_superpixel = superpixel;
-         
-            %get neigboring superpixels
-            if (mod(superpixel, w_pixel) == 1) %left border of image
-                neigboring_superpixels = [superpixel, superpixel+1];
-            elseif (mod(superpixel, w_pixel) == 0) %right border of image
-                neigboring_superpixels = [superpixel - 1, superpixel];
-            else %center of image
-                neigboring_superpixels = [superpixel - 1, superpixel, superpixel+1];
-            end
-			
-            if (superpixel <= w_pixel) %top border of image
-                neigboring_superpixels = [neigboring_superpixels, neigboring_superpixels + w_pixel];
-			elseif superpixel > N - w_pixel %bottom border of image
-                neigboring_superpixels = [neigboring_superpixels - w_pixel, neigboring_superpixels];
-            else %center of image
-                neigboring_superpixels = [neigboring_superpixels - w_pixel, neigboring_superpixels, neigboring_superpixels + w_pixel];
-			end
-
-
-			%disp(neigboring_superpixels)
-			
-			% dmin has to first be (i,j)'s current superpixel, otherwise it
-			% will by default be moved to the leftmost neighboring
-			% superpixel.
+            minimal_d = 1000;
+            new_superpixel = 1;
+            for a = 1:N
 			%color
             pc_input = input_imag(i,j,:);
-            pc_super = msprime_superpixels(superpixel, :);
+            pc_super = palette(:, superpixel_palette_colors(a));
             dc = sqrt(sum((pc_input - pc_super).^2, 'all'));
     
             %position
             pd_input = [i,j];
-            pd_super = [x_superpixel_centre y_superpixel_centre];
+            pd_super = [superpixel_center(1,a) superpixel_center(2,a)];
             dp = m*sqrt(N/M)*sqrt(sum((pd_input - pd_super).^2));
 
 			d_min = dc+dp;
-
-            % loop over neighboring superpixels
-            for a = neigboring_superpixels
-
-                %color
-                pc_input = input_imag(i,j,:);
-                pc_super = msprime_superpixels(a, :);
-                dc = sqrt(sum((pc_input - pc_super).^2, 'all'));
-    
-                %position
-                pd_input = [i,j];
-                pd_super = [x_superpixel_centre y_superpixel_centre];
-                dp = m*sqrt(N/M)*sqrt(sum((pd_input - pd_super).^2));
-				
-
-                if(dc + dp < d_min) %check euclidean distance
-                    d_min = dc + dp;
+                if d_min < minimal_d
+                    minimal_d = d_min;
                     new_superpixel = a;
                 end
-			end
-            input_superpixels(i,j) = new_superpixel; %assign pixel to new superpixel
-			
+            end
+            input_superpixels(i,j) = new_superpixel;
         end
 	end
 % 	figure
@@ -205,18 +161,16 @@ while temperature > temperature_f
     % get center of each superpixel (assume they are rather square) (copied
     % from code above)
     for i = 1:N
-        minx = w_input;
-        maxx = 0;
-        miny = h_input;
-        maxy = 0;
         [x,y] = find(input_superpixels == i); %find elements equal to i
-        x_superpixel_centre = (max(x) + min(x))/2;
-        y_superpixel_centre = (max(y) + min(y))/2;
-		if size([y_superpixel_centre, x_superpixel_centre]) ~= [0 2]
-			superpixel_center(:,i) = [y_superpixel_centre, x_superpixel_centre];
-		end
+        if(isempty(x) || isempty(y))
+            superpixel_center(:,i) = [0 0];
+        else
+            x_superpixel_centre = (max(x) + min(x))/2;
+            y_superpixel_centre = (max(y) + min(y))/2;
+	        superpixel_center(:,i) = [y_superpixel_centre, x_superpixel_centre];
+        end
 	end
-% 	plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
+ 	% plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
 
     for i = w_pixel+1:N-w_pixel % skip edges
         %get neigbouring superpixels
@@ -249,18 +203,8 @@ while temperature > temperature_f
     size_image = size(input_imag);
     size_superpixels = size(input_superpixels);
 
-    % compare sizes, input_superpixels was one row too much, fix somewhere else
-    if size_image(1) < size_superpixels(1)
-        input_superpixels = input_superpixels(1:size_image(1), :);
-    end
-
-    if size_image(2) < size_superpixels(2)
-        input_superpixels = input_superpixels(:, 1:size_image(2));
-    end
-
     ms_superpixels = zeros(N, 3); %ms value for every superpixel
     superpixels_image = zeros(size(input_imag));
-
     % Iterate over each superpixel
     for i = 1:N
         % Find the indices in input_superpixels that have the value
@@ -268,13 +212,10 @@ while temperature > temperature_f
         [row_indices, col_indices] = find(input_superpixels == i);
         
         if (not(isempty(row_indices))) % only run for still existing superpixels
-            % Loop over each color channel
-            for k = 1:3
-                % Get the corresponding color channel values in input_imag
-                color_values = input_imag(sub2ind(size(input_imag), row_indices, col_indices, k*ones(size(row_indices))));
-                % Calculate the mean of the corresponding color channel values in input_imag
-				ms_superpixels(i,k) = mean(color_values);
-            end
+            color_values = input_imag(row_indices, col_indices, :); % Get the corresponding color channel values in input_imag
+			ms_superpixels(i,:) = mean(color_values, [1 2]);% Calculate the mean of the corresponding color channel values in input_imag
+        else
+            ms_superpixels(i,:) = [0; 0; 0];
         end
     end
     
@@ -286,6 +227,8 @@ while temperature > temperature_f
     end
      figure
      imshow(lab2rgb(superpixels_image))
+     hold on
+     plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
      title('superpixels of image')
     
     %==========Convert superpixels to grid==========

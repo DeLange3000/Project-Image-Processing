@@ -32,7 +32,7 @@ M = numel(input_imag(:,:,1)); %get total amount of pixels of input image
 input_superpixels = zeros(size(input_imag(:,:,1))); %create array that maps pixels to superpixels. Each pixel 'index' will have int value in
                                                     %this array that corresponds to the superpixel they belong to
 superpixel_colors = zeros(3, N); % give each superpixel a color
-superpixel_palette_colors = ones(N, 1); %for assigning palette colors to superpixels (points to palette index)
+superpixel_palette_colors = round(rand(N,1))+1; %for assigning random palette color to superpixels (points to palette index)
 temperature = zeros(3,1);
 temperature_c = zeros(3,1);
 temperature_f = 1;
@@ -49,25 +49,28 @@ superpixel_width = w_input/w_pixel;
 superpixel_center = zeros(2, N);
 
 counter = 1;
-msprime_superpixels = zeros(3, h_pixel*w_pixel)
+superpixel_colors = [];
 for i = 1:superpixel_height:h_input %assign each input pixel to a superpixel
     for j = 1:superpixel_width:w_input
         jr = round(j);
         ir = round(i);
-        input_superpixels(ir:ir+superpixel_height, jr:jr+superpixel_width) = counter;
 
-        temp_superpixel_width = superpixel_width;
+                temp_superpixel_width = superpixel_width;
         temp_superpixel_height = superpixel_height;
-        while jr+pixel_width > width(input_image)
+        while jr+temp_superpixel_width > width(input_imag)
             temp_superpixel_width = temp_superpixel_width - 1;
         end
-        while jr+pixel_width > length(input_image)
-            temp_superpixel_width = temp_superpixel_width - 1;
+        while ir+temp_superpixel_height > height(input_imag)
+            temp_superpixel_height = temp_superpixel_height - 1;
         end
-        msprime_superpixels(:,counter) = mean(input_imag(ir:ir+temp_superpixel_height, jr:jr+temp_superpixel_width, :), [1 2]); % get mean color of each superpixel
+        superpixel_colors =[msprime_superpixels mean(input_imag(ir:ir+temp_superpixel_height, jr:jr+temp_superpixel_width, :), [1 2])]; % get mean color of each superpixel
+        input_superpixels(ir:ir+temp_superpixel_height, jr:jr+temp_superpixel_width) = counter;
+
         counter = counter + 1;
     end
 end
+
+superpixel_colors = squeeze(superpixel_colors);
 
 %get temperature_c (idk if correct)
 coefficients_L = pca(input_imag(:,:,1));
@@ -130,69 +133,21 @@ while temperature > temperature_f
     %this)
     for i = 1:h_input
         for j = 1:w_input
-%             if(mod(i*j, 10000) == 0)
-%                 disp("looping... "+num2str(i*j)+" of "+num2str(h_input*w_input))
-%             end
-            
-            superpixel = input_superpixels(i,j);
-            new_superpixel = superpixel;
-         
-            %get neigboring superpixels
-            if (mod(superpixel, w_pixel) == 1) %left border of image
-                neigboring_superpixels = [superpixel, superpixel+1];
-            elseif (mod(superpixel, w_pixel) == 0) %right border of image
-                neigboring_superpixels = [superpixel - 1, superpixel];
-            else %center of image
-                neigboring_superpixels = [superpixel - 1, superpixel, superpixel+1];
-            end
-			
-            if (superpixel <= w_pixel) %top border of image
-                neigboring_superpixels = [neigboring_superpixels, neigboring_superpixels + w_pixel];
-			elseif superpixel > N - w_pixel %bottom border of image
-                neigboring_superpixels = [neigboring_superpixels - w_pixel, neigboring_superpixels];
-            else %center of image
-                neigboring_superpixels = [neigboring_superpixels - w_pixel, neigboring_superpixels, neigboring_superpixels + w_pixel];
-			end
-
-
-			%disp(neigboring_superpixels)
-			
-			% dmin has to first be (i,j)'s current superpixel, otherwise it
-			% will by default be moved to the leftmost neighboring
-			% superpixel.
+            minimal_d = 1000;
+            for a = 1:N
 			%color
             pc_input = input_imag(i,j,:);
-            pc_super = msprime_superpixels(superpixel, :);
+            pc_super = palette(:, superpixel_palette_colors(a));
             dc = sqrt(sum((pc_input - pc_super).^2, 'all'));
     
             %position
             pd_input = [i,j];
-            pd_super = [x_superpixel_centre y_superpixel_centre];
+            pd_super = [superpixel_center(1,a) superpixel_center(2,a)];
             dp = m*sqrt(N/M)*sqrt(sum((pd_input - pd_super).^2));
 
 			d_min = dc+dp;
-
-            % loop over neighboring superpixels
-            for a = neigboring_superpixels
-
-                %color
-                pc_input = input_imag(i,j,:);
-                pc_super = palette(:, superpixel_palette_colors(a));
-                dc = sqrt(sum((pc_input - pc_super).^2, 'all'));
-    
-                %position
-                pd_input = [i,j];
-                pd_super = [x_superpixel_centre y_superpixel_centre];
-                dp = m*sqrt(N/M)*sqrt(sum((pd_input - pd_super).^2));
-				
-
-                if(dc + dp < d_min) %check euclidean distance
-                    d_min = dc + dp;
-                    new_superpixel = a;
-                end
-			end
-            input_superpixels(i,j) = new_superpixel; %assign pixel to new superpixel
-			
+            if d_min 
+            end
         end
 	end
 % 	figure
@@ -316,7 +271,9 @@ while temperature > temperature_f
                 normalisation_factor = GetNormalisationFactor(p_ck, msprime_superpixels((i-1)*w_pixel + j), palette, temperature);
                 p_ck_ps(i,j,a) = p_ck(a)*exp(-norm(msprime_superpixels((i-1)*w_pixel + j) - palette(:,a))/temperature)/normalisation_factor;
             end
-            superpixel_palette_colors((i-1)*w_pixel+j) = find(max(p_ck_ps(i,j,:)));
+            palette_color_index = length(find(p_ck_ps(5,6,:) == (max(p_ck_ps(5,6,:))))); % gets indexes that points to which color in the palette is most probable
+            superpixel_palette_colors((i-1)*w_pixel+j) = palette_color_index(1); % if palette_color_index has more then one element (50/50% chance)
+
         end
     end
 
@@ -334,7 +291,7 @@ while temperature > temperature_f
         palette(:,a) = sum(reshape(msprime_superpixels, h_pixel, w_pixel, 3).*p_ck_ps(:,:,a).*p_ps, [1 2])/p_ck(a);
     end
     disp('palette: '+string(palette))
-    disp('P_ck_ps: '+string(p_ck_ps))
+    %disp('P_ck_ps: '+string(p_ck_ps))
 
 
     %% check convergence of palette
@@ -362,11 +319,12 @@ while temperature > temperature_f
     %disturb ck1 and ck2
 
     % show temp image
-    pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_pixel, w_pixel);
- 
-    figure
-    imshow(lab2rgb(pixelated_image),'InitialMagnification',2000)
-    title('Pixelated Image')
+%     pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_pixel, w_pixel);
+%  
+%     figure
+%     imshow(lab2rgb(pixelated_image),'InitialMagnification',2000)
+%     title('Pixelated Image')
+
     end
 
 end
