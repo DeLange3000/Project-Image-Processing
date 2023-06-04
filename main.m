@@ -41,7 +41,7 @@ output_imag = zeros(h_pixel, w_pixel, 3);
 
 % palette = zeros(3,K);
 b_and_a_sat = 1.1;
-perturbation_factor = 0.01;
+perturbation_factor = 5;
 
 %assigning input pixels to superpixels
 superpixel_height = h_input/h_pixel; %round if wanted image size is not N times input image size
@@ -49,14 +49,27 @@ superpixel_width = w_input/w_pixel;
 superpixel_center = zeros(2, N);
 
 counter = 1;
+msprime_superpixels = [];
 for i = 1:superpixel_height:h_input %assign each input pixel to a superpixel
     for j = 1:superpixel_width:w_input
         jr = round(j);
         ir = round(i);
         input_superpixels(ir:ir+superpixel_height, jr:jr+superpixel_width) = counter;
+
+        temp_superpixel_width = superpixel_width;
+        temp_superpixel_height = superpixel_height;
+        while jr+temp_superpixel_width > width(input_imag)
+            temp_superpixel_width = temp_superpixel_width - 1;
+        end
+        while ir+temp_superpixel_height > height(input_imag)
+            temp_superpixel_height = temp_superpixel_height - 1;
+        end
+        msprime_superpixels =[msprime_superpixels mean(input_imag(ir:ir+temp_superpixel_height, jr:jr+temp_superpixel_width, :), [1 2])]; % get mean color of each superpixel
         counter = counter + 1;
     end
 end
+
+msprime_superpixels = squeeze(msprime_superpixels);
 
 %get temperature_c (idk if correct)
 coefficients_L = pca(input_imag(:,:,1));
@@ -71,18 +84,15 @@ C_b = var(input_imag(:,:,3) * PC_b);
 
 % imagesc(input_superpixels)
 initial_color = squeeze((mean(input_imag, [1, 2]))); %get mean L color of input image
-p_ck = [0.9 0.1]; %initiate P(ck)
+p_ck = [0.5 0.5]; %initiate P(ck)
 p_ps = 1/N;
-palette = [initial_color + [rand; randn; randn].*perturbation_factor.*[C_L; C_a; C_b], initial_color + [rand; randn; randn].*perturbation_factor.*[C_L; C_a; C_b]];
+palette = [initial_color.*[rand; randn; randn].*perturbation_factor, initial_color.*[rand; randn; randn].*perturbation_factor];
 e_palette = 50; % maximum change for new color
 e_cluster = 10;
 temperature_lowering_factor = 0.7;
 
 %subclusters
 subclusters = [1; 2];
-
-
-
 
 % C_L = max(eig(cov(input_imag(:,:,1)))); %get max eigenvalue of input image
 % C_a = max(eig(cov(input_imag(:,:,2))));
@@ -103,6 +113,7 @@ for i = 1:N
     superpixel_center(:,i) = [y_superpixel_centre, x_superpixel_centre];
 end
 plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
+
 
 %% loop for T > Tf
 
@@ -153,7 +164,7 @@ while temperature > temperature_f
 			% superpixel.
 			%color
             pc_input = input_imag(i,j,:);
-            pc_super = palette(:, superpixel_palette_colors(superpixel));
+            pc_super = msprime_superpixels(superpixel, :);
             dc = sqrt(sum((pc_input - pc_super).^2, 'all'));
     
             %position
@@ -168,7 +179,7 @@ while temperature > temperature_f
 
                 %color
                 pc_input = input_imag(i,j,:);
-                pc_super = palette(:, superpixel_palette_colors(a));
+                pc_super = msprime_superpixels(a, :);
                 dc = sqrt(sum((pc_input - pc_super).^2, 'all'));
     
                 %position
@@ -300,37 +311,34 @@ while temperature > temperature_f
 
     %calculate p(ck|ps)
 
-    temp_p_ck = zeros(size(p_ck));
-    temp_ck = zeros(size(palette));
+    p_ck_ps = zeros(h_pixel, w_pixel, width(palette));
     for i = 1:h_pixel
         for j = 1:w_pixel
-            max_p_ck_ps = 0;
-            palette_index = 0;
-            p_ck_ps = zeros(1, length(palette(1,:)));
-            for a = 1:length(p_ck_ps)
-                p_ck_ps(a) = p_ck(a)* exp(-norm(msprime_superpixels((i-1)*w_pixel + j, :) - palette(:,a))/temperature); %needs to be normalized?
-                if(p_ck_ps(a) >= max_p_ck_ps)
-                    max_p_ck_ps = p_ck_ps(a); 
-                    palette_index = a;
-                end
+            for a = 1:width(palette)
+                normalisation_factor = GetNormalisationFactor(p_ck, msprime_superpixels((i-1)*w_pixel + j), palette, temperature);
+                p_ck_ps(i,j,a) = p_ck(a)*exp(-norm(msprime_superpixels((i-1)*w_pixel + j) - palette(:,a))/temperature)/normalisation_factor;
             end
-            normalisation_factor = GetNormalisationFactor(p_ck, msprime_superpixels((i-1)*w_pixel+j, :), palette, temperature);
-            p_ck_ps = p_ck_ps/normalisation_factor;
+            palette_color_index = length(find(p_ck_ps(5,6,:) == (max(p_ck_ps(5,6,:))))); % gets indexes that points to which color in the palette is most probable
+            superpixel_palette_colors((i-1)*w_pixel+j) = palette_color_index(1); % if palette_color_index has more then one element (50/50% chance)
 
-            for a = 1:length(temp_p_ck)
-                temp_p_ck(a) = temp_p_ck(a) + p_ck_ps(a)*p_ps;
-                temp_ck(:, a) = temp_ck(:, a) + msprime_superpixels((i-1)*w_pixel+j, :)'*p_ck_ps(a)*p_ps;
-            end
-            superpixel_palette_colors((i-1)*w_pixel+j) = palette_index;
         end
     end
-    p_ck = temp_p_ck;
+
+    p_ck = zeros(width(palette),1)
+    for a = 1:width(palette)
+        for i = 1:h_pixel
+            for j = 1:w_pixel
+                p_ck(a) = sum(p_ck_ps(:,:,a).*p_ps, [1 2]);
+            end
+        end
+    end
 
     %refine colors
-
-    palette = temp_ck./p_ck;
+    for a = 1:width(palette)
+        palette(:,a) = sum(reshape(msprime_superpixels, h_pixel, w_pixel, 3).*p_ck_ps(:,:,a).*p_ps, [1 2])/p_ck(a);
+    end
     disp('palette: '+string(palette))
-    disp('P_ck_ps: '+string(p_ck_ps))
+    %disp('P_ck_ps: '+string(p_ck_ps))
 
 
     %% check convergence of palette
@@ -358,11 +366,12 @@ while temperature > temperature_f
     %disturb ck1 and ck2
 
     % show temp image
-    pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_pixel, w_pixel);
- 
-    figure
-    imshow(lab2rgb(pixelated_image),'InitialMagnification',2000)
-    title('Pixelated Image')
+%     pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_pixel, w_pixel);
+%  
+%     figure
+%     imshow(lab2rgb(pixelated_image),'InitialMagnification',2000)
+%     title('Pixelated Image')
+
     end
 
 end
