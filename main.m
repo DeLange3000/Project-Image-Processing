@@ -4,13 +4,13 @@ clear
 
 %% input parameters
 
-h_pixel = 10; % height of final pixelated image
-w_pixel = 10; % width of final pixelated image
+h_pixel = 40; % height of final pixelated image
+w_pixel = 40; % width of final pixelated image
 K = 2; % amount of different colors in the final image
 addpath('images');
 % source_filename = "obamna.jpg"; % source file name
-% source_filename = "shrek.jpg"; % source file name
-source_filename = "images/dolphin.jpg"; % source file name
+ source_filename = "shrek.jpg"; % source file name
+%source_filename = "images/dolphin.jpg"; % source file name
 
 
 %% open image
@@ -49,28 +49,25 @@ superpixel_width = w_input/w_pixel;
 superpixel_center = zeros(2, N);
 
 counter = 1;
-superpixel_colors = [];
 for i = 1:superpixel_height:h_input %assign each input pixel to a superpixel
     for j = 1:superpixel_width:w_input
         jr = round(j);
         ir = round(i);
 
-                temp_superpixel_width = superpixel_width;
-        temp_superpixel_height = superpixel_height;
-        while jr+temp_superpixel_width > width(input_imag)
-            temp_superpixel_width = temp_superpixel_width - 1;
-        end
-        while ir+temp_superpixel_height > height(input_imag)
-            temp_superpixel_height = temp_superpixel_height - 1;
-        end
-        superpixel_colors =[superpixel_colors mean(input_imag(ir:ir+temp_superpixel_height, jr:jr+temp_superpixel_width, :), [1 2])]; % get mean color of each superpixel
-        input_superpixels(ir:ir+temp_superpixel_height, jr:jr+temp_superpixel_width) = counter;
-
+        input_superpixels(ir:ir+superpixel_height + 1, jr:jr+superpixel_width + 1) = counter;
         counter = counter + 1;
     end
 end
 
-superpixel_colors = squeeze(superpixel_colors);
+input_superpixels = input_superpixels(1:h_input, 1:w_input); % get correct array size
+
+% get superpixel colors
+superpixel_colors = zeros(N, 3);
+for i = 1:N
+    [x, y] = find(input_superpixels == i);
+    superpixel_colors(i, :) = mean(input_imag(x,y, :), [1, 2]);
+end
+
 
 %get temperature_c (idk if correct)
 coefficients_L = pca(input_imag(:,:,1));
@@ -104,22 +101,21 @@ temperature = 1.1*temperature_c; %initial value set for temperature
 
 % get center of each superpixel (assume they are rather square)
 for i = 1:N
-    minx = w_input;
-    maxx = 0;
-    miny = h_input;
-    maxy = 0;
     [x,y] = find(input_superpixels == i); %find elements equal to i
     x_superpixel_centre = (max(x) + min(x))/2;
     y_superpixel_centre = (max(y) + min(y))/2;
     superpixel_center(:,i) = [y_superpixel_centre, x_superpixel_centre];
 end
-plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
+%plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
 
 
 %% loop for T > Tf
 
+loop_index = 0;
 while temperature > temperature_f
     disp('temperature: '+string(temperature))
+    loop_index = loop_index + 1;
+    disp('loop:' + string(loop_index))
 
     %% refine superpixels with modified SLIC (simple linear iterative clustering)
 
@@ -129,63 +125,48 @@ while temperature > temperature_f
 
     %iterate for each input pixel over superpixels that it is next too (got to optimize
     %this)
-    for i = 1:h_input
-        for j = 1:w_input
-            minimal_d = 1000;
-            new_superpixel = 1;
-            for a = 1:N
-			%color
-            pc_input = input_imag(i,j,:);
-            pc_super = palette(:, superpixel_palette_colors(a));
-            dc = sqrt(sum((pc_input - pc_super).^2, 'all'));
-    
-            %position
-            pd_input = [i,j];
-            pd_super = [superpixel_center(1,a) superpixel_center(2,a)];
-            dp = m*sqrt(N/M)*sqrt(sum((pd_input - pd_super).^2));
-
-			d_min = dc+dp;
-                if d_min < minimal_d
-                    minimal_d = d_min;
-                    new_superpixel = a;
-                end
+            minimal_d = ones(h_input, w_input)*1e9;
+            
+            if (loop_index >1)
+                superpixel_colors = msprime_superpixels';
+            else
+                superpixel_colors = superpixel_colors';
             end
-            input_superpixels(i,j) = new_superpixel;
-        end
-	end
+            for aa = 1:N
+			    %color
+                pc_input = input_imag;
+                pc_super = palette(:, superpixel_palette_colors(aa)); %superpixel_colors(:,aa); % should be superpixel_palette_colors(aa)
+                a1 =repmat(pc_super(1), h_input, w_input);
+                a2 =repmat(pc_super(2), h_input, w_input);
+                a3 =repmat(pc_super(3), h_input, w_input);
+                pc_super =  cat(3, a1, a2, a3);
+                dc = sqrt(sum((pc_input - pc_super).^2, 3));
+        
+                %position
+                pd_input = cat(3,ones(h_input, w_input).*[1:h_input]', ones(h_input, w_input).*[1:w_input]);
+                pd_super = cat(3, superpixel_center(2,aa)*ones(h_input, w_input), superpixel_center(1,aa)*ones(h_input, w_input));
+                dp = m.*sqrt(N/M).*sqrt((pd_input(:,:,1) - pd_super(:,:,1)).^2 + (pd_input(:,:,2) - pd_super(:,:,2)).^2);
+    
+			    d_min = dc+dp;
+                change_indices = d_min < minimal_d;
+                minimal_d(change_indices) = d_min(change_indices);
+                input_superpixels(change_indices) = aa;
+            end
 % 	figure
 % 	imagesc(input_superpixels)
 % 	hold on
-    %% laplacian smoothing
+    %% laplacian smoothing (hopefully doesnt cause mega pixel bugs anymore)
 
-    % get center of each superpixel (assume they are rather square) (copied
-    % from code above)
-    for i = 1:N
-        [x,y] = find(input_superpixels == i); %find elements equal to i
-        if(isempty(x) || isempty(y))
-            superpixel_center(:,i) = [0 0];
-        else
-            x_superpixel_centre = (max(x) + min(x))/2;
-            y_superpixel_centre = (max(y) + min(y))/2;
-	        superpixel_center(:,i) = [y_superpixel_centre, x_superpixel_centre];
-        end
-	end
- 	% plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
-
-    for i = w_pixel+1:N-w_pixel % skip edges
+    for i = (w_pixel+1):(N-w_pixel+1) % skip edges
         %get neigbouring superpixels
         if (mod(i, w_pixel) == 1 || mod(i, w_pixel) == 0) %skip left and right border of image
             neigboring_superpixels = [];
         else
             neigboring_superpixels = [i - 1, i + 1, i + w_pixel, i - w_pixel];
+            mean_position = mean(superpixel_center(:,neigboring_superpixels), 2);
+            superpixel_center(:,i) = 0.6*superpixel_center(:,i) + 0.4*mean_position; % move superpixel centers
         end
-	
-        net_distance = [0; 0]; %x and y
-        for a = neigboring_superpixels
-            superpixel_center(:,i) - superpixel_center(:,a);
-            net_distance = net_distance + superpixel_center(:,i) - superpixel_center(:,a);
-        end
-        superpixel_center(:,i) = superpixel_center(:,i) + 0.4*net_distance; % move superpixel centers
+	    
     end
     
     % smoothing color representatives of superpixels Original SLIC
@@ -214,8 +195,6 @@ while temperature > temperature_f
         if (not(isempty(row_indices))) % only run for still existing superpixels
             color_values = input_imag(row_indices, col_indices, :); % Get the corresponding color channel values in input_imag
 			ms_superpixels(i,:) = mean(color_values, [1 2]);% Calculate the mean of the corresponding color channel values in input_imag
-        else
-            ms_superpixels(i,:) = [0; 0; 0];
         end
     end
     
@@ -228,7 +207,7 @@ while temperature > temperature_f
      figure
      imshow(lab2rgb(superpixels_image))
      hold on
-     plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
+     %plot(superpixel_center(1,:),superpixel_center(2,:), "*r")
      title('superpixels of image')
     
     %==========Convert superpixels to grid==========
@@ -267,7 +246,7 @@ while temperature > temperature_f
         end
     end
 
-    p_ck = zeros(width(palette),1)
+    p_ck = zeros(width(palette),1);
     for a = 1:width(palette)
         for i = 1:h_pixel
             for j = 1:w_pixel
