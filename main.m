@@ -9,8 +9,8 @@ w_pixel = 40; % width of final pixelated image
 K = 2; % amount of different colors in the final image
 perturbation_factor = 100;
 addpath('images');
-% source_filename = "obamna.jpg"; % source file name
-source_filename = "shrek.jpg"; % source file name
+source_filename = "obamna.jpg"; % source file name
+% source_filename = "shrek.jpg"; % source file name
 % source_filename = "images/dolphin.jpg"; % source file name
 
 
@@ -83,7 +83,7 @@ C_b = var(input_imag(:,:,3) * PC_b);
 
 % imagesc(input_superpixels)
 initial_color = squeeze((mean(input_imag, [1, 2]))); %get mean L color of input image
-p_ck = [0.9 0.1]; %initiate P(ck)
+p_ck = [0.5 0.5]; %initiate P(ck)
 p_ps = 1/N;
 palette = [initial_color, initial_color];
 e_palette = 10; % maximum change for new color
@@ -242,22 +242,23 @@ while temperature > temperature_f
     for i = 1:h_pixel
         for j = 1:w_pixel
             for a = 1:width(palette)
-                normalisation_factor = GetNormalisationFactor(p_ck, msprime_superpixels((i-1)*w_pixel + j), palette, temperature);                
-                p_ck_ps(i,j,a) = p_ck(a)*exp(-norm(msprime_superpixels((i-1)*w_pixel + j) - palette(:,a))/temperature)/normalisation_factor;
+                normalisation_factor = GetNormalisationFactor(p_ck, msprime_superpixels((i-1)*w_pixel + j, :), palette, temperature);                
+                p_ck_ps(i,j,a) = p_ck(a)*exp(-norm(msprime_superpixels((i-1)*w_pixel + j, :) - palette(:,a)')/temperature)/normalisation_factor;
             end
             palette_color_index = find(p_ck_ps(i,j,:) == max(p_ck_ps(i,j,:))); % gets indexes that points to which color in the palette is most probable
-            superpixel_palette_colors((i-1)*w_pixel+j) = palette_color_index(1); % if palette_color_index has more then one element (50/50% chance)
+            %assign random color to superpixel if 50/50% chance
+            if(length(palette_color_index) > 1)
+                superpixel_palette_colors((i-1)*w_pixel+j) = palette_color_index(randi(length(palette_color_index))); % assign palette color to superpixel
+            else
+                 superpixel_palette_colors((i-1)*w_pixel+j) = palette_color_index;
+            end
 
         end
     end
 
     p_ck = zeros(width(palette),1);
     for a = 1:width(palette)
-        for i = 1:h_pixel
-            for j = 1:w_pixel
-                p_ck(a) = sum(p_ck_ps(:,:,a).*p_ps, [1 2]);
-            end
-        end
+         p_ck(a) = sum(p_ck_ps(:,:,a).*p_ps, [1 2]);
     end
 
     %refine colors

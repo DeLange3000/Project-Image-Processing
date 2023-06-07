@@ -86,9 +86,9 @@ initial_color = squeeze((mean(input_imag, [1, 2]))); %get mean L color of input 
 p_ck = [0.5 0.5]; %initiate P(ck)
 p_ps = 1/N;
 palette = [initial_color, initial_color];
-e_palette = 50; % maximum change for new color
+e_palette = 10; % maximum change for new color
 e_cluster = 10;
-temperature_lowering_factor = 0.7;
+temperature_lowering_factor = 0.7; %0.7;
 
 %subclusters
 subclusters = [1; 2];
@@ -126,7 +126,7 @@ while temperature > temperature_f
     m = 45;
     total_palette_change = palette;
     for i = length(palette(1,:))
-    palette(:,i) = palette(:,i) + [rand; randn; randn].*perturbation_factor; %permutations of mean
+        palette(:,i) = palette(:,i) + [rand; randn; randn].*perturbation_factor; %permutations of mean
     end
     %iterate for each input pixel over superpixels that it is next too (got to optimize
     %this)
@@ -242,15 +242,16 @@ while temperature > temperature_f
     for i = 1:h_pixel
         for j = 1:w_pixel
             for a = 1:width(palette)
-                normalisation_factor = GetNormalisationFactor(p_ck, msprime_superpixels((i-1)*w_pixel + j), palette, temperature);
-
-                normalisation_facto
-                exp(-norm(msprime_superpixels((i-1)*w_pixel + j) - palette(:,a))/temperature)
-                
-                p_ck_ps(i,j,a) = p_ck(a)*exp(-norm(msprime_superpixels((i-1)*w_pixel + j) - palette(:,a))/temperature)/normalisation_factor;
+                normalisation_factor = GetNormalisationFactor(p_ck, msprime_superpixels((i-1)*w_pixel + j, :), palette, temperature);                
+                p_ck_ps(i,j,a) = p_ck(a)*exp(-norm(msprime_superpixels((i-1)*w_pixel + j, :) - palette(:,a)')/temperature)/normalisation_factor;
             end
-            palette_color_index = find(p_ck_ps(i,j,:) == (max(p_ck_ps(i,j,:)))); % gets indexes that points to which color in the palette is most probable
-            superpixel_palette_colors((i-1)*w_pixel+j) = palette_color_index(1); % if palette_color_index has more then one element (50/50% chance)
+            palette_color_index = find(p_ck_ps(i,j,:) == max(p_ck_ps(i,j,:))); % gets indexes that points to which color in the palette is most probable
+            %assign random color to superpixel if 50/50% chance
+            if(length(palette_color_index) > 1)
+                superpixel_palette_colors((i-1)*w_pixel+j) = palette_color_index(randi(length(palette_color_index))); % assign palette color to superpixel
+            else
+                 superpixel_palette_colors((i-1)*w_pixel+j) = palette_color_index;
+            end
 
         end
     end
@@ -289,7 +290,6 @@ while temperature > temperature_f
                         subclusters = [subclusters [i; length(palette)]];
                         p_ck = [p_ck p_ck(i)/2];
                         p_ck(i) = p_ck(i)/2;
-
                     end
                 end
         end
@@ -297,11 +297,11 @@ while temperature > temperature_f
     %disturb ck1 and ck2
 
     % show temp image
-%     pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_pixel, w_pixel);
-%  
-%     figure
-%     imshow(lab2rgb(pixelated_image),'InitialMagnification',2000)
-%     title('Pixelated Image')
+    pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_pixel, w_pixel);
+ 
+    figure
+    imshow(lab2rgb(pixelated_image),'InitialMagnification',2000)
+    title('Pixelated Image')
 
     end
 
