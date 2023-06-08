@@ -57,7 +57,7 @@ for i = 1:superpixel_height:h_input %assign each input pixel to a superpixel
         jr = round(j);
         ir = round(i);
 
-        input_superpixels(ir:ir+round(superpixel_height) + 1, jr:jr+round(superpixel_width) + 1) = counter;
+        input_superpixels(ir:ir+superpixel_height + 1, jr:jr+superpixel_width + 1) = counter;
         counter = counter + 1;
     end
 end
@@ -118,7 +118,7 @@ mNM = m*sqrt(N/M);
 loop_index = 0;
 while temperature > temperature_f
     loop_index = loop_index + 1;
-    fprintf('iteration ' + string(loop_index) + '\tT = ' + string(temperature) + '\t\tK = ' + string(size(palette,2)) + '\n')
+    disp('iteration ' + string(loop_index) + '; T = ' + string(temperature) + '; K = ' + string(size(palette(2))) + '\n')
 
     %% refine superpixels with modified SLIC (simple linear iterative clustering)
 
@@ -166,7 +166,7 @@ while temperature > temperature_f
                 %position
                 
                 pd_super = cat(3, superpixel_center(2,aa)*ones(h_input, w_input), superpixel_center(1,aa)*ones(h_input, w_input));
-                dp = m*sqrt(N/M)*sqrt((pd_input(:,:,1) - pd_super(:,:,1)).^2 + (pd_input(:,:,2) - pd_super(:,:,2)).^2);
+                dp = mNM.*sqrt((pd_input(:,:,1) - pd_super(:,:,1)).^2 + (pd_input(:,:,2) - pd_super(:,:,2)).^2);
     
 			    d_min = dc(superpixel_palette_colors(aa))+dp;
                 change_indices = d_min < minimal_d;
