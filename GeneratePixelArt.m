@@ -1,17 +1,19 @@
-clc
-close all
-clear
+function GeneratePixelArt(source_filename,h_pixel,w_pixel,K)
+
+% clc
+% close all
+% clear
 
 %% input parameters
 
-h_pixel = 40; % height of final pixelated im age
-w_pixel = 40; % width of final pixelated image
-K = 8; % amount of different colors in the final image
+% h_pixel = 30; % height of final pixelated im age
+% w_pixel = 40; % width of final pixelated image
+% K = 8; % amount of different colors in the final image
 perturbation_factor = 10;
-addpath('images');
-% source_filename = "obamna.jpg"; % source file name
-source_filename = "shrek.jpg"; % source file name
-% source_filename = "images/dolphin.jpg"; % source file name
+% addpath('images');
+% % source_filename = "obamna.jpg"; % source file name
+% % source_filename = "shrek.jpg"; % source file name
+% source_filename = "dolphin.jpg"; % source file name
 
 
 %% open image
@@ -69,7 +71,6 @@ for i = 1:N
     superpixel_colors(i, :) = mean(input_imag(x,y, :), [1, 2]);
 end
 
-
 %get temperature_c (idk if correct)
 coefficients_L = pca(input_imag(:,:,1));
 PC_L = coefficients_L(:, 1);
@@ -86,7 +87,7 @@ initial_color = squeeze((mean(input_imag, [1, 2]))); %get mean L color of input 
 p_ck = [0.5 0.5]; %initiate P(ck)
 p_ps = 1/N;
 palette = [initial_color, initial_color];
-e_palette = 10; % maximum change for new color
+e_palette = 5; % maximum change for new color
 e_cluster = 1; %minimum change for palette color split
 temperature_lowering_factor = 0.7; %0.7;
 
@@ -128,7 +129,8 @@ while temperature > temperature_f
             palette(:,i) = palette(:,i) + [rand; randn; randn].*perturbation_factor; %permutations of mean
         end
     else
-        palette(:,i) = palette(:,i) + [rand; randn; randn].*temperature; %permutations of mean
+        e_palette = 1;
+         palette(:,i) = palette(:,i) + [rand; randn; randn].*perturbation_factor/100;
     end
 
     %iterate for each input pixel over superpixels that it is next too (got to optimize
@@ -229,11 +231,9 @@ while temperature > temperature_f
     % Bilateral filtering of this image
     filtered_image = imbilatfilt(lab2rgb(output_pixels));
     filtered_image = rgb2lab(filtered_image);
-%     msprime_superpixels = permute(filtered_image,[2 1 3]);
-%     msprime_superpixels = reshape(msprime_superpixels,N,3);
+    msprime_superpixels = permute(filtered_image,[2 1 3]);
+    msprime_superpixels = reshape(msprime_superpixels,N,3);
 
-msprime_superpixels = ms_superpixels;
-    
 %     figure
 %     imshow([lab2rgb(output_pixels) lab2rgb(filtered_image)],'InitialMagnification',2000)
 %     title('Before and after bilaterial filtering')
@@ -267,9 +267,16 @@ msprime_superpixels = ms_superpixels;
     end
 
     %refine colors
+    temp_palette = zeros(3,length(palette(1,:)));
     for a = 1:width(palette)
-        palette(:,a) = sum(reshape(msprime_superpixels, h_pixel, w_pixel, 3).*p_ck_ps(:,:,a).*p_ps, [1 2]) /p_ck(a);
+        for i = 1:h_pixel
+            for j = 1:w_pixel
+                temp_palette(:,a) = temp_palette(:,a) + msprime_superpixels((i-1)*w_pixel + j, :)'.*p_ck_ps(i,j,a).*p_ps/p_ck(a);
+            end
+        end
     end
+
+    palette = temp_palette;
     disp('palette: '+string(palette))
     %disp('P_ck_ps: '+string(p_ck_ps))
 
@@ -293,6 +300,7 @@ msprime_superpixels = ms_superpixels;
                         p_ck(i) = p_ck(i)/2;
                         break
                     end
+
                 end
         end
 
@@ -300,9 +308,9 @@ msprime_superpixels = ms_superpixels;
     % show temp image
     pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_pixel, w_pixel);
  
-    figure
-    imshow(lab2rgb(pixelated_image),'InitialMagnification',400)
-    title('Pixelated Image')
+%     figure
+%     imshow(lab2rgb(pixelated_image),'InitialMagnification',400)
+%     title('Pixelated Image')
 end
 %% post process
 
@@ -315,3 +323,6 @@ pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_
 figure
 imshow(lab2rgb(pixelated_image),'InitialMagnification',2000)
 title('Pixelated Image')
+
+end
+

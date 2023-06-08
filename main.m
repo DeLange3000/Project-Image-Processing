@@ -4,14 +4,14 @@ clear
 
 %% input parameters
 
-h_pixel = 40; % height of final pixelated im age
-w_pixel = 80; % width of final pixelated image
+h_pixel = 30; % height of final pixelated im age
+w_pixel = 40; % width of final pixelated image
 K = 8; % amount of different colors in the final image
-perturbation_factor = 10;
+perturbation_factor = 50;
 addpath('images');
 % source_filename = "obamna.jpg"; % source file name
-source_filename = "shrek.jpg"; % source file name
-% source_filename = "images/dolphin.jpg"; % source file name
+% source_filename = "shrek.jpg"; % source file name
+source_filename = "dolphin.jpg"; % source file name
 
 
 %% open image
@@ -68,7 +68,6 @@ for i = 1:N
     [x, y] = find(input_superpixels == i);
     superpixel_colors(i, :) = mean(input_imag(x,y, :), [1, 2]);
 end
-
 
 %get temperature_c (idk if correct)
 coefficients_L = pca(input_imag(:,:,1));
@@ -307,9 +306,9 @@ while temperature > temperature_f
     % show temp image
     pixelated_image = constructPixelatedImage(superpixel_palette_colors, palette, h_pixel, w_pixel);
  
-    figure
-    imshow(lab2rgb(pixelated_image),'InitialMagnification',400)
-    title('Pixelated Image')
+%     figure
+%     imshow(lab2rgb(pixelated_image),'InitialMagnification',400)
+%     title('Pixelated Image')
 end
 %% post process
 
