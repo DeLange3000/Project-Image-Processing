@@ -23,7 +23,7 @@ input_imag = rgb2lab(input_imag);
 input_imag = imresize(input_imag, 0.5);
 figure
 imshow(lab2rgb(input_imag))
-title('OBAMNA')
+title('Original Image')
 hold on
 
 %% ---------------- algorithm ---------------------------------
@@ -71,7 +71,7 @@ for i = 1:N
     superpixel_colors(i, :) = mean(input_imag(x,y, :), [1, 2]);
 end
 
-%get temperature_c (idk if correct)
+%get temperature_c
 coefficients_L = pca(input_imag(:,:,1));
 PC_L = coefficients_L(:, 1);
 C_L = var(input_imag(:,:,1) * PC_L);
@@ -94,9 +94,6 @@ temperature_lowering_factor = 0.7;
 %subclusters
 subclusters = [1; 2];
 
-% C_L = max(eig(cov(input_imag(:,:,1)))); %get max eigenvalue of input image
-% C_a = max(eig(cov(input_imag(:,:,2))));
-% C_b = max(eig(cov(input_imag(:,:,3))));
 
 temperature_c = 2*norm([C_L C_a C_b]); % set critical temperature
 temperature = 1.1*temperature_c; %initial value set for temperature
@@ -233,8 +230,6 @@ while temperature > temperature_f
     
     %==========Convert superpixels to grid==========
     %Create output image based on the superpixels
-    %nie zeker of da zo moet, werkt alleen als de volgorde van de
-    %superpixels = de volgorde van de output pixels
     output_pixels = ms_superpixels;
     output_pixels = reshape(output_pixels,w_pixel,h_pixel,3);
     output_pixels = permute(output_pixels,[2 1 3]);    
@@ -325,7 +320,7 @@ while temperature > temperature_f
 end
 %% post process
 
-palette(2:3,:) = b_and_a_sat*palette(2:3,:);
+palette(2:3,:) = b_and_a_sat*palette(2:3,:); % saturate palette
 
 %% show image
 

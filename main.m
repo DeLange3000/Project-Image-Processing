@@ -21,7 +21,7 @@ input_imag = rgb2lab(input_imag);
 input_imag = imresize(input_imag, 0.5);
 figure
 imshow(lab2rgb(input_imag))
-title('OBAMNA')
+title('Original Image')
 hold on
 
 %% ---------------- algorithm ---------------------------------
