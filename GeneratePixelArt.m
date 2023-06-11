@@ -1,20 +1,11 @@
 function GeneratePixelArt(source_filename,h_pixel,w_pixel,K)
-
-% clc
-% close all
-% clear
-
-%% input parameters
-
-% h_pixel = 30; % height of final pixelated im age
-% w_pixel = 40; % width of final pixelated image
-% K = 8; % amount of different colors in the final image
-perturbation_factor = 10;
-% addpath('images');
-% % source_filename = "obamna.jpg"; % source file name
-% % source_filename = "shrek.jpg"; % source file name
-% source_filename = "dolphin.jpg"; % source file name
-
+% Implemented as function such that the GUI can call it with the specified
+% parameters
+% Inputs
+%   source_filename: filename of the input image
+%   h_pixel: output pixel height
+%   w_pixel: output pixel width
+%   K: palette size (amount of colors in output image)
 
 %% open image
 
@@ -27,6 +18,8 @@ title('Original Image')
 hold on
 
 %% ---------------- algorithm ---------------------------------
+
+perturbation_factor = 10;
 
 %% initialize superpixels, palette and temperature
 

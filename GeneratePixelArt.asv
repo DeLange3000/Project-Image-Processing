@@ -1,14 +1,12 @@
 function GeneratePixelArt(source_filename,h_pixel,w_pixel,K)
-
-% clc
-% close all
-% clear
+% Implemented as function such that the GUI can call it with the specified
+% parameters
+% Inputs
+%   source_filename: filename of the input image
+%   h_pixel: output pix
 
 %% input parameters
 
-% h_pixel = 30; % height of final pixelated im age
-% w_pixel = 40; % width of final pixelated image
-% K = 8; % amount of different colors in the final image
 perturbation_factor = 10;
 % addpath('images');
 % % source_filename = "obamna.jpg"; % source file name
@@ -23,7 +21,7 @@ input_imag = rgb2lab(input_imag);
 input_imag = imresize(input_imag, 0.5);
 figure
 imshow(lab2rgb(input_imag))
-title('OBAMNA')
+title('Original Image')
 hold on
 
 %% ---------------- algorithm ---------------------------------
@@ -57,7 +55,7 @@ for i = 1:superpixel_height:h_input %assign each input pixel to a superpixel
         jr = round(j);
         ir = round(i);
 
-        input_superpixels(ir:ir+superpixel_height + 1, jr:jr+superpixel_width + 1) = counter;
+        input_superpixels(ir:ir+round(superpixel_height) + 1, jr:jr+round(superpixel_width) + 1) = counter;
         counter = counter + 1;
     end
 end
@@ -71,7 +69,7 @@ for i = 1:N
     superpixel_colors(i, :) = mean(input_imag(x,y, :), [1, 2]);
 end
 
-%get temperature_c (idk if correct)
+%get temperature_c
 coefficients_L = pca(input_imag(:,:,1));
 PC_L = coefficients_L(:, 1);
 C_L = var(input_imag(:,:,1) * PC_L);
@@ -94,9 +92,6 @@ temperature_lowering_factor = 0.7;
 %subclusters
 subclusters = [1; 2];
 
-% C_L = max(eig(cov(input_imag(:,:,1)))); %get max eigenvalue of input image
-% C_a = max(eig(cov(input_imag(:,:,2))));
-% C_b = max(eig(cov(input_imag(:,:,3))));
 
 temperature_c = 2*norm([C_L C_a C_b]); % set critical temperature
 temperature = 1.1*temperature_c; %initial value set for temperature
@@ -118,7 +113,7 @@ mNM = m*sqrt(N/M);
 loop_index = 0;
 while temperature > temperature_f
     loop_index = loop_index + 1;
-    disp('iteration ' + string(loop_index) + '; T = ' + string(temperature) + '; K = ' + string(size(palette(2))) + '\n')
+    fprintf('iteration ' + string(loop_index) + '\tT = ' + string(temperature) + '\t\tK = ' + string(size(palette,2)) + '\n')
 
     %% refine superpixels with modified SLIC (simple linear iterative clustering)
 
@@ -166,7 +161,7 @@ while temperature > temperature_f
                 %position
                 
                 pd_super = cat(3, superpixel_center(2,aa)*ones(h_input, w_input), superpixel_center(1,aa)*ones(h_input, w_input));
-                dp = mNM.*sqrt((pd_input(:,:,1) - pd_super(:,:,1)).^2 + (pd_input(:,:,2) - pd_super(:,:,2)).^2);
+                dp = m*sqrt(N/M)*sqrt((pd_input(:,:,1) - pd_super(:,:,1)).^2 + (pd_input(:,:,2) - pd_super(:,:,2)).^2);
     
 			    d_min = dc(superpixel_palette_colors(aa))+dp;
                 change_indices = d_min < minimal_d;
@@ -233,8 +228,6 @@ while temperature > temperature_f
     
     %==========Convert superpixels to grid==========
     %Create output image based on the superpixels
-    %nie zeker of da zo moet, werkt alleen als de volgorde van de
-    %superpixels = de volgorde van de output pixels
     output_pixels = ms_superpixels;
     output_pixels = reshape(output_pixels,w_pixel,h_pixel,3);
     output_pixels = permute(output_pixels,[2 1 3]);    
@@ -325,7 +318,7 @@ while temperature > temperature_f
 end
 %% post process
 
-palette(2:3,:) = b_and_a_sat*palette(2:3,:);
+palette(2:3,:) = b_and_a_sat*palette(2:3,:); % saturate palette
 
 %% show image
 
