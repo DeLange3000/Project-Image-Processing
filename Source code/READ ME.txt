@@ -1,0 +1,4 @@
+READ ME
+
+RUN 'GUI.mlapp'. This function runs the GUI.
+PLACE the image you want to convert in the 'Source colde' folder and select it using the GUI
